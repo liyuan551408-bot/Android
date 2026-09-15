@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +43,9 @@ import massey.android.myapplication.model.Photo
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.saveable.rememberSaveable
 import massey.android.myapplication.ui.theme.MyApplicationTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import massey.android.myapplication.viewmodel.PhotoGalleryViewModel
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,7 +61,8 @@ class MainActivity : ComponentActivity() {
 }
 @Composable
 fun GalleryWithPermission(
-    contentResolver: ContentResolver
+    contentResolver: ContentResolver,
+
 ) {
     val context = LocalContext.current
     val permission =
@@ -95,21 +98,17 @@ fun GalleryWithPermission(
 }
 @Composable
 fun PhotoGallery(
-    contentResolver: ContentResolver
+    contentResolver: ContentResolver,
+    viewModel: PhotoGalleryViewModel = viewModel()
 ) {
-    var photos by remember {
-        mutableStateOf<List<Photo>>(emptyList())
-    }
-    var columns by rememberSaveable{
-        mutableStateOf(2)
-    }
     var totalZoom by remember{
         mutableStateOf(1f)
     }
     LaunchedEffect(Unit) {
-        photos = withContext(Dispatchers.IO) {
+        val photos = withContext(Dispatchers.IO) {
             getPhotos(contentResolver)
         }
+        viewModel.setPhotos(photos)
         Log.d(
             "GalleryDebug",
             "PhotoGallery received ${photos.size} photos"
@@ -117,23 +116,19 @@ fun PhotoGallery(
     }
     Scaffold { innerPadding ->
         LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
+            columns = GridCells.Fixed(viewModel.columns),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .pointerInput(Unit){
                     detectTransformGestures { _, _, zoom, _ ->
                         totalZoom*=zoom
-                        if(totalZoom>1.3f){
-                            if(columns>=2){
-                                columns--
-                            }
+                        if(totalZoom>1.5f){
+                            viewModel.zoomIn()
                             totalZoom=1f
                         }
-                        else if(totalZoom<0.7f){
-                            if(columns<3){
-                                columns++
-                            }
+                        else if(totalZoom<0.5f){
+                            viewModel.zoomOut()
                             totalZoom=1f
                         }
 
@@ -142,7 +137,7 @@ fun PhotoGallery(
 
         ) {
             items(
-                items = photos,
+                items = viewModel.photos,
                 key = { photo -> photo.id }
             ) { photo ->
                 PhotoThumbnail(
@@ -156,7 +151,7 @@ fun PhotoGallery(
 @Composable
 fun PhotoThumbnail(
     photo: Photo,
-    contentResolver: ContentResolver
+    contentResolver: ContentResolver,
 ) {
     var bitmap by remember(photo.id) {
         mutableStateOf<Bitmap?>(null)
@@ -187,13 +182,6 @@ fun PhotoThumbnail(
                             options
                         )
                     }
-            Log.d(
-                "GalleryDebug",
-                "Photo ${photo.id}: " +
-                        "${photo.width}x${photo.height}, " +
-                        "sample=$sampleSize, " +
-                        "bitmap=${result != null}"
-            )
             result
         }
     }
@@ -238,6 +226,7 @@ fun calculateInSampleSize(
 }
 fun getPhotos(
     contentResolver: ContentResolver
+
 ): List<Photo> {
     val photos = mutableListOf<Photo>()
     val projection = arrayOf(
@@ -255,10 +244,6 @@ fun getPhotos(
         null,
         sortOrder
     )?.use { cursor ->
-        Log.d(
-            "GalleryDebug",
-            "Cursor count = ${cursor.count}"
-        )
         val idColumn =
             cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID
             )
@@ -286,9 +271,5 @@ fun getPhotos(
             )
         }
     }
-    Log.d(
-        "GalleryDebug",
-        "MediaStore photos = ${photos.size}"
-    )
     return photos
 }
