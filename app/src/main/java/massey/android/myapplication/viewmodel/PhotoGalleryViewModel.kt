@@ -12,7 +12,7 @@ class PhotoGalleryViewModel : ViewModel() {
         private set
     var photos by mutableStateOf<List<Photo>>(emptyList())
         private set
-    fun setPhotos(newPhotos: List<Photo>) {
+    fun updatePhotos(newPhotos: List<Photo>) {
         photos = newPhotos
     }
     fun zoomIn() {
