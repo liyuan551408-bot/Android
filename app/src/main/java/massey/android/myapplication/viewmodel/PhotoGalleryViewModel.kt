@@ -16,7 +16,7 @@ class PhotoGalleryViewModel : ViewModel() {
         photos = newPhotos
     }
     fun zoomIn() {
-        if (columns >= 2) {
+        if (columns >1) {
             columns--
         }
     }
